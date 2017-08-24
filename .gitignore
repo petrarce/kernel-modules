@@ -1,10 +1,9 @@
-*built-in.o
-*main.ko
-*main.mod.c
-*main.mod.o
-*main.o
-*modules.order
-*Module.symvers
+*.o
+*.ko
+*.order
+*.symvers
 *.cmd
 *.swp
+*.mod.c
 .tmp_versions/*
+*.d
