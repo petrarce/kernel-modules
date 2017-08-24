@@ -1,0 +1,10 @@
+*built-in.o
+*main.ko
+*main.mod.c
+*main.mod.o
+*main.o
+*modules.order
+*Module.symvers
+*.cmd
+*.swp
+.tmp_versions/*
