@@ -5,5 +5,5 @@
 *.cmd
 *.swp
 *.mod.c
-.tmp_versions/*
+.tmp_versions/
 *.d
