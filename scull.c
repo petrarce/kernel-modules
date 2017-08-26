@@ -18,8 +18,36 @@ struct cdev *dev_scull0 = NULL;
 int dev_scull0_maj_min;
 bool dev_scull0_status = 0;
 
-/*SECTION local static functions*/
+/*SECTION set device file methods*/
 
+static loff_t scull_llseek(struct file *f, loff_t offeset, int whence)
+{
+	return 0;
+}
+
+static ssize_t scull_read(struct file *f, char __user * a, size_t b, loff_t * c)
+{
+	return 0;
+}
+
+static ssize_t scull_write(struct file *f, const char __user * a, size_t b,
+			   loff_t * c)
+{
+	return 0;
+}
+
+struct file_operations scull0_fops = {
+	.owner = THIS_MODULE,
+	.llseek = scull_llseek,
+	.read = scull_read,
+	.write = scull_write
+/*TODO: implement function*/
+//      .unlock_ioctl   = scull_unlock_ioctl,
+//      .open                   = scull_open,
+//      .release                = scull_release,
+};
+
+/*SECTION local static functions*/
 static int release_resources(void)
 {
 
@@ -36,9 +64,10 @@ static int release_resources(void)
 	return 0;
 }
 
-static int scull_setup_cdev()
+static int scull_setup_cdev(void)
 {
 
+	short err = 0;
 	/*allocate device scull0 */
 	cdev_init(dev_scull0, &scull0_fops);
 	if (!dev_scull0) {
@@ -60,34 +89,6 @@ static int scull_setup_cdev()
 
 	return 0;
 }
-
-static loff_t scull_llseek(struct file *f, loff_t offeset, int whence)
-{
-	return 0;
-}
-
-static ssize_t scull_read(struct file *f, char __user * a, size_t b, loff_t * c)
-{
-	return 0;
-}
-
-static ssize_t scull_write(struct file *f, const char __user * a, size_t b,
-			   loff_t * c)
-{
-	return 0;
-}
-
-/*SECTION set device file methods*/
-struct file_operations scull0_fops = {
-	.owner = THIS_MODULE,
-	.llseek = scull_llseek,
-	.read = scull_read,
-	.write = scull_write
-/*TODO: implement function*/
-//      .unlock_ioctl   = scull_unlock_ioctl,
-//      .open                   = scull_open,
-//      .release                = scull_release,
-};
 
 /*init functions*/
 static int __init scull_init(void)
