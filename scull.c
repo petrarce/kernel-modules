@@ -36,6 +36,31 @@ static int release_resources(void)
 	return 0;
 }
 
+static int scull_setup_cdev()
+{
+
+	/*allocate device scull0 */
+	cdev_init(dev_scull0, &scull0_fops);
+	if (!dev_scull0) {
+		pr_err("failed to allocate memory for device structure\n");
+		/*DO WE NEED TO UNREGISTER IT? */
+		unregister_chrdev_region(device, SCULL_CHARDEV_COUNT);
+		return -1;
+	}
+
+	err = cdev_add(dev_scull0, dev_scull0_maj_min, 1);
+	if (err) {
+		pr_err("cannot add device to a kernel structurei, err=%d\n",
+		       err);
+		cdev_del(dev_scull0);	/*Can it break CO? */
+		unregister_chrdev_region(device, SCULL_CHARDEV_COUNT);
+		return -1;
+	}
+	pr_info("dev_scull0 initialised sucessfully\n");
+
+	return 0;
+}
+
 static loff_t scull_llseek(struct file *f, loff_t offeset, int whence)
 {
 	return 0;
@@ -81,24 +106,9 @@ static int __init scull_init(void)
 	}
 	pr_info("major/minor regions iniialised sucessfully\n");
 
-	/*allocate device scull0 */
-	cdev_init(dev_scull0, &scull0_fops);
-	if (!dev_scull0) {
-		pr_err("failed to allocate memory for device structure\n");
-		/*DO WE NEED TO UNREGISTER IT? */
-		unregister_chrdev_region(device, SCULL_CHARDEV_COUNT);
+	err = scull_setup_cdev();
+	if (err)
 		return -1;
-	}
-
-	err = cdev_add(dev_scull0, dev_scull0_maj_min, 1);
-	if (err) {
-		pr_err("cannot add device to a kernel structurei, err=%d\n",
-		       err);
-		cdev_del(dev_scull0);	/*Can it break CO? */
-		unregister_chrdev_region(device, SCULL_CHARDEV_COUNT);
-		return -1;
-	}
-	pr_info("dev_scull0 initialised sucessfully\n");
 	dev_scull0_status = 1;
 
 	return 0;
