@@ -3,7 +3,7 @@
 #include <linux/fs.h>
 #include <linux/types.h>
 #include <linux/cdev.h>
-
+#include "scull.h"
 /*for scull0->scull3 and scullpipe0->scullpipe3*/
 #define SCULL_CHARDEV_COUNT		2
 #define SCULL_MINOR_NUMBER		666
