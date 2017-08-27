@@ -6,111 +6,152 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include "scull.h"
+
+MODULE_LICENSE("GPL");
 /*for scull0->scull3 and scullpipe0->scullpipe3*/
 #define pr_dbg(str, ...) printk("[DEBUG:(%s:%d)]" str "\n", __FUNCTION__, __LINE__, ##__VA_ARGS__);
 #define FSTART pr_dbg("Start")
 #define FSTOP	pr_dbg("Stop")
 /*SECTION module parameters*/
-static void scull_qset_free(struct scull_qset* qset){
-	
+
+int scull_trim(struct scull_dev *dev)
+{
+	struct scull_qset *next, *dptr;
+	int qset = dev->qset;	/* "dev" is not-null */
 	int i;
 
-	if(!qset)
+	for (dptr = dev->data; dptr; dptr = next) {	/* all the list items */
+		if (dptr->data) {
+			for (i = 0; i < qset; i++)
+				kfree(dptr->data[i]);
+			kfree(dptr->data);
+			dptr->data = NULL;
+		}
+		next = dptr->next;
+		kfree(dptr);
+	}
+	dev->size = 0;
+	dev->quantum = 0;
+	dev->qset = 0;
+	dev->data = NULL;
+	return 0;
+}
+
+static void scull_qset_free(struct scull_qset *qset)
+{
+
+	int i;
+
+	if (!qset)
 		return;
 
-	if(!qset->data && !qset->next)
+	if (!qset->data)
 		goto fqset;
 
-	for (i = 0; qset->data[i]; i++ ){
-		kfree(data);
+	for (i = 0; i < SCULL_MAX_DATA_COUNT; i++) {
+		kfree(qset->data[i]);
 		qset->data[i] = NULL;
 	}
 
-
-fdata:
+ fdata:
+	pr_dbg("freeing qset->data");
 	kfree(qset->data);
-	scull_qset_free(qset->next);
 	qset->data = 0;
-fqset:	
+ fqset:
+	pr_dbg("freeing qset");
 	kfree(qset);
 	qset = 0;
 }
-static int scull_dev_free(struct scull_dev* dev)
+
+static int scull_dev_free(struct scull_dev *dev)
 {
-	
-	if (!dev){
-		FSTOP;	
+	int i;
+	struct scull_qset *next, *data;
+
+	if (!dev) {
+		FSTOP;
 		return 0;
 	}
 
 	if (!dev->data)
-		goto fscull;	
+		goto fscull;
+	data = dev->data;
+	for (i = 0; data; data = next) {
 
-	scull_qset_free(dev->data);
-fscull:
+		next = data->next;
+		scull_qset_free(data);
+	}
+
+ fscull:
 	kfree(dev);
 	FSTOP;
 	return 0;
 }
 
-static struct scull_qset* scull_init_qset(void)
+static struct scull_qset *scull_init_qset(void)
 {
 	FSTART;
 	int i;
-	struct scull_qset* qset;
+	struct scull_qset *qset;
 
 	qset = kmalloc(sizeof(struct scull_qset), GFP_KERNEL);
 	if (!qset)
 		return 0;
+	memset(qset, 0, sizeof(struct scull_qset));
+	pr_dbg("qset inited, qset=%p", qset);
 
-	qset->data = kmalloc(SCULL_MAX_DATA_COUNT * sizeof(void*), GFP_KERNEL);
-	if (!qset->data){
+	qset->data = kmalloc(SCULL_MAX_DATA_COUNT * sizeof(void *), GFP_KERNEL);
+	if (!qset->data) {
 		goto free_qset;
-		return 0;
 	}
-
-	for(i = 0; i < SCULL_MAX_DATA_COUNT; i++){
+	memset(qset->data, 0, SCULL_MAX_DATA_COUNT * sizeof(void *));
 		
+	for (i = 0; i < SCULL_MAX_DATA_COUNT; i++) {
+
 		qset->data[i] = kmalloc(SCULL_MAX_DATA * sizeof(void), GFP_KERNEL);
-		if (!qset->data[i]){/*deinitialise all allocated memory*/
-			for(i-- ; i >= 0 ;i-- )
+		if (!qset->data[i]) {	/*deinitialise all allocated memory */
+			pr_dbg("cannot init qset->data[%i]", i);
+			for (i--; i >= 0; i--)
 				kfree(qset->data[i]);
 			goto free_data;
 		}
+		memset(qset->data[i], 0, SCULL_MAX_DATA);
+
 	}
+	pr_dbg("qset=%p", qset);
 	FSTOP;
 	return qset;
 
-free_data: 
+ free_data:
 	kfree(qset->data);
-free_qset:	
+ free_qset:
 	kfree(qset);
 	FSTOP;
 	return 0;
 
 }
 
-static struct scull_dev* scull_init_dev(void)
+static struct scull_dev *scull_init_dev(void)
 {
 	FSTART;
-	struct scull_dev* dev = NULL;
-	struct scull_qset* qset = NULL;
+	struct scull_dev *dev = NULL;
+	struct scull_qset *qset = NULL;
 
-	/*GSP_KERNEL - allocates data in behalf of kernel (can sleep)*/
+	/*GSP_KERNEL - allocates data in behalf of kernel (can sleep) */
 	dev = kmalloc(sizeof(struct scull_dev), GFP_KERNEL);
-	if (!dev){
+	if (!dev) {
 		FSTOP;
 		return 0;
 	}
-	/*initialise quantum*/
-    dev->qset = scull_init_qset();
-	if (!dev->qset)
-	{
+	memset(dev, 0, sizeof(struct scull_dev));
+	/*initialise quantum */
+	dev->data = scull_init_qset();
+	if (!dev->data) {
+		pr_dbg("cannot allocate dev->data");
 		scull_dev_free(dev);
 		return 0;
 	}
 
-	dev->data = qset;
 	dev->quantum = SCULL_MAX_DATA * SCULL_MAX_DATA_COUNT;
 	dev->qset = 1;
 	dev->size = 0;
@@ -120,13 +161,12 @@ static struct scull_dev* scull_init_dev(void)
 	return dev;
 }
 
-
-
-static int scull_add_qset(struct scull_dev* dev)
+static int scull_add_qset(struct scull_dev *dev)
 {
-	//TOFO: implement	
+	//TOFO: implement       
 	return 0;
 }
+
 /*SECTION global variables*/
 dev_t device;
 struct scull_dev *scull_dev0 = NULL;
@@ -134,8 +174,7 @@ int dev_scull0_maj_min;
 bool dev_scull0_status = 0;
 struct scull_dev *scull_dev;
 
-/**/
-
+ /**/
 /*SECTION set device file methods*/
 static loff_t scull_llseek(struct file *f, loff_t offeset, int whence)
 {
@@ -147,17 +186,21 @@ static ssize_t scull_read(struct file *filep, char __user * user_buf,
 {
 
 	struct scull_dev *dev = filep->private_data;
+	uint res_size;
 	printk("dev=%p, pos=%i, size=%d\n", dev, *pos, size);
-/*	if (down_interruptible(&dev->em)) {
-		return -ERESTARTSYS;
-		goto out;
-	}
-*/
-	printk("hello this is read call!!! Please retry wryting");
-	copy_to_user(user_buf, "hello", 6);
-	//out:
-	//     up(&dev->sem);
-	return 0;
+
+	if (!size)
+		return 0;
+
+	if (size > dev->size)
+		res_size = dev->size;
+	else
+		res_size = size;
+	
+	pr_dbg("dev->data=%p, dev=%p", dev->data, dev);
+	copy_to_user(user_buf, dev->data->data[0], res_size);
+
+	return res_size;
 }
 
 static ssize_t scull_write(struct file *f, const char __user * a, size_t b,
@@ -173,21 +216,20 @@ static int scull_open(struct inode *inodep, struct file *filep)
 	 *2. init device, if it is opened first time
 	 *3. update f_op pointer if necessary
 	 *4. allocate and fill aney data to be put in file->private data
-	*/
-	struct scull_dev* dev;
+	 */
+	struct scull_dev *dev;
 
-	/*no errors to check, as we didn's have any device*/
+	/*no errors to check, as we didn's have any device */
 
-	/*no device to initialise*/
+	/*no device to initialise */
 
-	/*no need to update f_op ponter*/
+	/*no need to update f_op ponter */
 
-	/*allocating device data*/
-	/*initialise new quantum, if previous is already full*/
-		
-	mutex_lock(&scull_dev0->sem);
-	/*check if device is opened for first time*/
-	
+	/*allocating device data */
+	/*initialise new quantum, if previous is already full */
+
+	/*check if device is opened for first time */
+
 	dev = container_of(inodep->i_cdev, struct scull_dev, cdev);
 	/*Why not to initialise with pointer of scull_dev0? scull_dev0->cdev and inode->dev are different instances? This is
 	 * vaste of memory!*/
@@ -197,15 +239,12 @@ static int scull_open(struct inode *inodep, struct file *filep)
 	return 0;
 }
 
-
-
 static int scull_release(struct inode *inodep, struct file *filep)
 {
 	/*
 	 * deallocate all resource, allocated in open
 	 * close hardvare device after last close
 	 */
-
 	/*scull douen't have any hardvare, so just return */
 	return 0;
 }
@@ -230,7 +269,7 @@ static int release_resources(void)
 	/*unregister device */
 	if (dev_scull0_status != 0) {
 
-		if (scull_dev0->cdev.kobj.state_initialized){
+		if (scull_dev0->cdev.kobj.state_initialized) {
 			cdev_del(&scull_dev0->cdev);
 			pr_dbg("char device deinitialised");
 		}
@@ -240,7 +279,7 @@ static int release_resources(void)
 	}
 
 	if (scull_dev0) {
-		scull_dev_free(scull_dev0);
+		scull_trim(scull_dev0);
 		scull_dev0 = 0;
 		pr_dbg("scull_dev0 has been freed");
 	}
@@ -296,6 +335,8 @@ static int scull_setup_cdev(void)
 	return 0;
 }
 
+#ifndef MEM_LEAK_TEST
+
 /*init functions*/
 static int __init scull_init(void)
 {
@@ -318,5 +359,25 @@ static void __exit scull_exit(void)
 }
 
 module_exit(scull_exit)
+#else
+
+void *qset;
+
+static int __init scull_init(void)
+{
+
+	qset = kmalloc(100000, GFP_KERNEL);
+	return 0;
+}
+
+module_init(scull_init);
+
+static void __exit scull_exit(void)
+{
+	kfree(qset);
+}
+
+module_exit(scull_exit)
+#endif
 /*symbols*/
 /*EXPORT_SYMBOL_GPL*/

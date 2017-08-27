@@ -6,7 +6,7 @@
 #define SCULL0_MAJOR(dev)		MAJOR(dev)
 #define SCULL0_MINOR(dev)		MINOR(dev+0)
 
-#define SCULL_MAX_DATA			1000 /*bytes*/
+#define SCULL_MAX_DATA			1000	/*bytes */
 #define SCULL_MAX_DATA_COUNT	1000
 /*scull_qset and scull_dev was taken from offisial scull code`
  *
