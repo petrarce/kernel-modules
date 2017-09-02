@@ -41,33 +41,43 @@ static void scull_qset_free(struct scull_qset *qset)
 {
 
 	int i;
-
-	if (!qset)
+	FSTART;
+	
+	if (!qset){
+		pr_dbg("qset equals to 0");
+		FSTOP;
 		return;
-
-	if (!qset->data)
-		goto fqset;
-
-	for (i = 0; i < SCULL_MAX_DATA_COUNT; i++) {
-		kfree(qset->data[i]);
-		qset->data[i] = NULL;
 	}
 
- fdata:
-	pr_dbg("freeing qset->data");
+	if (!qset->data){
+		pr_dbg("qset->data equals to 0");
+		goto fqset;
+	}
+
+	for (i = 0; i < SCULL_MAX_DATA_COUNT; i++) {
+		
+		if(!qset->data[i]){
+			pr_dbg("qset->data[%d] equals 0", i);
+			continue;
+		}
+		pr_dbg("freeing qset->data[%d]", i);
+		kfree(qset->data[i]);
+		
+	}
+
 	kfree(qset->data);
 	qset->data = 0;
  fqset:
-	pr_dbg("freeing qset");
 	kfree(qset);
 	qset = 0;
+	FSTOP;
 }
 
 static int scull_dev_free(struct scull_dev *dev)
 {
 	int i;
 	struct scull_qset *next, *data;
-
+	
 	if (!dev) {
 		FSTOP;
 		return 0;
@@ -88,37 +98,46 @@ static int scull_dev_free(struct scull_dev *dev)
 	return 0;
 }
 
-static struct scull_qset *scull_init_qset(void)
+static struct scull_qset *scull_qset_init(void)
 {
-	FSTART;
 	int i;
 	struct scull_qset *qset;
+	FSTART;
 
 	qset = kmalloc(sizeof(struct scull_qset), GFP_KERNEL);
-	if (!qset)
+	if (!qset){
+		pr_err("failed to allocate qset pointer");
 		return 0;
+		
+	}
 	memset(qset, 0, sizeof(struct scull_qset));
-	pr_dbg("qset inited, qset=%p", qset);
-
+	
 	qset->data = kmalloc(SCULL_MAX_DATA_COUNT * sizeof(void *), GFP_KERNEL);
 	if (!qset->data) {
+		pr_err("failed to allocate qset->data");
 		goto free_qset;
 	}
 	memset(qset->data, 0, SCULL_MAX_DATA_COUNT * sizeof(void *));
 		
 	for (i = 0; i < SCULL_MAX_DATA_COUNT; i++) {
-
-		qset->data[i] = kmalloc(SCULL_MAX_DATA * sizeof(void), GFP_KERNEL);
+		
+		pr_dbg("allocating qset->data[%d]", i);
+		qset->data[i] = kmalloc(SCULL_MAX_DATA * sizeof(void* ), GFP_KERNEL);
 		if (!qset->data[i]) {	/*deinitialise all allocated memory */
-			pr_dbg("cannot init qset->data[%i]", i);
-			for (i--; i >= 0; i--)
+			
+			pr_err("failed to allocate qset->data[%d]", i);
+			
+			for (i--; i >= 0; i--){
+				if(!qset->data[i])
+					continue;	/*just in case*/
 				kfree(qset->data[i]);
+			}
+			
 			goto free_data;
 		}
 		memset(qset->data[i], 0, SCULL_MAX_DATA);
 
 	}
-	pr_dbg("qset=%p", qset);
 	FSTOP;
 	return qset;
 
@@ -131,11 +150,10 @@ static struct scull_qset *scull_init_qset(void)
 
 }
 
-static struct scull_dev *scull_init_dev(void)
+static struct scull_dev *scull_dev_init(void)
 {
-	FSTART;
 	struct scull_dev *dev = NULL;
-	struct scull_qset *qset = NULL;
+	FSTART;
 
 	/*GSP_KERNEL - allocates data in behalf of kernel (can sleep) */
 	dev = kmalloc(sizeof(struct scull_dev), GFP_KERNEL);
@@ -145,13 +163,11 @@ static struct scull_dev *scull_init_dev(void)
 	}
 	memset(dev, 0, sizeof(struct scull_dev));
 	/*initialise quantum */
-	dev->data = scull_init_qset();
+	dev->data = scull_qset_init();
 	if (!dev->data) {
-		pr_dbg("cannot allocate dev->data");
 		scull_dev_free(dev);
 		return 0;
 	}
-
 	dev->quantum = SCULL_MAX_DATA * SCULL_MAX_DATA_COUNT;
 	dev->qset = 1;
 	dev->size = 0;
@@ -185,10 +201,11 @@ static ssize_t scull_read(struct file *filep, char __user * user_buf,
 			  size_t size, loff_t * pos)
 {
 
+	int err;
 	struct scull_dev *dev = filep->private_data;
 	uint res_size;
-	printk("dev=%p, pos=%i, size=%d\n", dev, *pos, size);
-
+	printk("dev=%p, pos=%d, size=%d\n", dev, *pos, size);
+	
 	if (!size)
 		return 0;
 
@@ -196,9 +213,12 @@ static ssize_t scull_read(struct file *filep, char __user * user_buf,
 		res_size = dev->size;
 	else
 		res_size = size;
-	
-	pr_dbg("dev->data=%p, dev=%p", dev->data, dev);
-	copy_to_user(user_buf, dev->data->data[0], res_size);
+	pr_dbg("filep->private_data=%p", filep->private_data);
+	pr_dbg("filep->private_data->data=%p", ((struct scull_dev *)filep->private_data)->data);
+	err = copy_to_user(user_buf, dev->data->data[0], res_size);
+	if(err){
+		pr_err("failed to cuoy buffer to userspace");
+	}
 
 	return res_size;
 }
@@ -211,13 +231,13 @@ static ssize_t scull_write(struct file *f, const char __user * a, size_t b,
 
 static int scull_open(struct inode *inodep, struct file *filep)
 {
-	FSTART;
 	/*1. check device-specific errors (device not ready ...)
 	 *2. init device, if it is opened first time
 	 *3. update f_op pointer if necessary
 	 *4. allocate and fill aney data to be put in file->private data
 	 */
 	struct scull_dev *dev;
+	FSTART;
 
 	/*no errors to check, as we didn's have any device */
 
@@ -231,10 +251,12 @@ static int scull_open(struct inode *inodep, struct file *filep)
 	/*check if device is opened for first time */
 
 	dev = container_of(inodep->i_cdev, struct scull_dev, cdev);
+	pr_dbg("dev=%p", dev);
+	pr_dbg("dev->data=%p", dev->data);
 	/*Why not to initialise with pointer of scull_dev0? scull_dev0->cdev and inode->dev are different instances? This is
 	 * vaste of memory!*/
+	
 	filep->private_data = dev;
-	pr_dbg("dev=%p, scull_dev0=%p", dev, scull_dev0);
 	FSTOP;
 	return 0;
 }
@@ -271,17 +293,14 @@ static int release_resources(void)
 
 		if (scull_dev0->cdev.kobj.state_initialized) {
 			cdev_del(&scull_dev0->cdev);
-			pr_dbg("char device deinitialised");
 		}
 
 		unregister_chrdev_region(device, SCULL_CHARDEV_COUNT);
-		pr_dbg("device deinitialised sucessfully");
 	}
 
 	if (scull_dev0) {
 		scull_trim(scull_dev0);
 		scull_dev0 = 0;
-		pr_dbg("scull_dev0 has been freed");
 	}
 
 	return 0;
@@ -289,10 +308,12 @@ static int release_resources(void)
 
 static int scull_setup_cdev(void)
 {
-	FSTART;
 	int err = 0;
+	FSTART;
 
-	scull_dev0 = scull_init_dev();
+	scull_dev0 = scull_dev_init();
+	pr_dbg("skull_dev0=%p", scull_dev0);
+	pr_dbg("scull_dev0->data=%p",scull_dev0->data);
 	if (!scull_dev0) {
 		pr_err("cannot allocate scull_dev0");
 		return -1;
@@ -335,8 +356,8 @@ static int scull_setup_cdev(void)
 	return 0;
 }
 
-#ifndef MEM_LEAK_TEST
-
+#define _DEBUG_SECTION
+#ifndef _DEBUG_SECTION  
 /*init functions*/
 static int __init scull_init(void)
 {
@@ -361,12 +382,12 @@ static void __exit scull_exit(void)
 module_exit(scull_exit)
 #else
 
-void *qset;
+struct scull_qset* test_qset;
 
 static int __init scull_init(void)
 {
 
-	qset = kmalloc(100000, GFP_KERNEL);
+	test_qset = scull_qset_init();
 	return 0;
 }
 
@@ -374,7 +395,7 @@ module_init(scull_init);
 
 static void __exit scull_exit(void)
 {
-	kfree(qset);
+	scull_qset_free(test_qset);
 }
 
 module_exit(scull_exit)
