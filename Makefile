@@ -1,11 +1,3 @@
-ifneq ($(KERNELRELEASE),)
-
-#main object file, which will be used, to create target .ko file. 
-#(e.g. if obj-m = my.o -> my.ko)
-obj-m = $(MAIN_OBJ)
-#other objects, that will be linked into kernel module
-module-objs = $(SECONDARY_OBJ)
-else
 
 ifeq ($(KPATH),)
 
@@ -14,10 +6,21 @@ endif
 
 .PHONY = default 
 
-default:
+default:build install
+
+build: 
 	#make command to compile external kernel module
 	#-C - path to kernel build environment, 
 	#M=... - specifies absolute path to external module resources
-	make -C ${KPATH} M=${PWD}
+	make  -C ${KPATH} M=${PWD}
+	
+install:
+	install -m 755 *.ko  "$(INSTALL_MOD_PATH)"
 
-endif
+clean:
+	make -C $(KPATH) M=$(PWD) clean
+	
+modules:
+	make -C $(KPATH) M=$(PWD) modules
+help:
+	make -C $(KPATH) M=$(PWD) help
