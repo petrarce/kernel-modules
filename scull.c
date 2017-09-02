@@ -318,7 +318,6 @@ static int scull_setup_cdev(void)
 		pr_err("cannot allocate scull_dev0");
 		return -1;
 	}
-	memset(scull_dev0, 0, sizeof(struct scull_dev));
 	printk("memset succeed\n");
 
 	/*TODO: initialise mutex correctly */
