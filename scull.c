@@ -198,35 +198,55 @@ static loff_t scull_llseek(struct file *f, loff_t offeset, int whence)
 }
 
 static ssize_t scull_read(struct file *filep, char __user * user_buf,
-			  size_t size, loff_t * pos)
+			  size_t size, loff_t * offset)
 {
 
-	int err;
+	/*1. get pointer to private data from file pointer*/
+	/*2. make all needed checks*/
+	/*3. copy from current buffer to userspace*/
+	/*4. return appropriate value*/
+	int err, read_size;
 	struct scull_dev *dev = filep->private_data;
-	uint res_size;
-	printk("dev=%p, pos=%d, size=%d\n", dev, *pos, size);
-	
-	if (!size)
-		return 0;
+	FSTART;
+	pr_dbg("size = %d", size);
 
-	if (size > dev->size)
-		res_size = dev->size;
-	else
-		res_size = size;
-	pr_dbg("filep->private_data=%p", filep->private_data);
-	pr_dbg("filep->private_data->data=%p", ((struct scull_dev *)filep->private_data)->data);
-	err = copy_to_user(user_buf, dev->data->data[0], res_size);
-	if(err){
-		pr_err("failed to cuoy buffer to userspace");
-	}
+	read_size = (dev->size > size)?size:dev->size;
 
-	return res_size;
+	if(err = copy_to_user(user_buf, dev->data->data[0], read_size))
+		return -1;
+		
+	dev->size -= read_size;
+	memset(dev->data->data[0] + dev->size, 0, read_size);
+	return read_size;
 }
 
-static ssize_t scull_write(struct file *f, const char __user * a, size_t b,
-			   loff_t * c)
+static ssize_t scull_write(struct file *filep, const char __user * user_buf, size_t size,
+			   loff_t * offset)
 {
-	return 0;
+	/*1. get private_data from file*/
+	/*2. check if device is available (not needed for scul device)*/
+	/*3. copy data from user here, if device is full - notify about it (code -1)*/
+	int ret = 0;
+	struct scull_dev *dev = filep->private_data;
+	FSTART;
+	
+	if(size > (SCULL_MAX_DATA) - dev->size){
+		FSTOP;
+		return -2; /*too much data is given to us*/
+	}
+	
+	if(ret = copy_from_user(dev->data->data[0] + dev->size, user_buf, size)){
+		FSTOP;
+		return -1;	/*if any amount of data wasn't copyed 
+					 *from userspace return error of copying from
+					 */
+	}
+	dev->size += size;
+
+	ret = size; /*return size of writen symbols*/
+
+	FSTOP;
+	return ret;
 }
 
 static int scull_open(struct inode *inodep, struct file *filep)
@@ -355,7 +375,6 @@ static int scull_setup_cdev(void)
 	return 0;
 }
 
-#define _DEBUG_SECTION
 #ifndef _DEBUG_SECTION  
 /*init functions*/
 static int __init scull_init(void)
@@ -367,6 +386,7 @@ static int __init scull_init(void)
 	if (err)
 		return -1;
 	dev_scull0_status = 1;
+	pr_dbg("scull_dev0->data=%p", scull_dev0->data);
 
 	return 0;
 }
