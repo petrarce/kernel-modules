@@ -1,7 +1,16 @@
 
-ifeq ($(KPATH),)
+ifeq ($(OBJ),)
+obj-m=scull.o
+else
+obj-m=${OBJ}
+endif
 
+ifeq ($(KPATH),)
 KPATH=/lib/modules/`uname -r`/build
+endif
+
+ifeq ($(INSTALL_MOD_PATH),)
+INSTALL_MOD_PATH = .
 endif
 
 .PHONY = default 
