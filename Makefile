@@ -1,6 +1,6 @@
 
 ifeq ($(OBJ),)
-obj-m=scull.o
+obj-m=reverce.o
 else
 obj-m=${OBJ}
 endif

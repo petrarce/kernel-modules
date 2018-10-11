@@ -8,20 +8,20 @@
 
 #define SCULL_MAX_DATA			1000	/*bytes */
 #define SCULL_MAX_DATA_COUNT	1000
-/*scull_qset and scull_dev was taken from offisial scull code`
+/*reverce_qset and reverce_dev was taken from offisial reverce code`
  *
  */
-struct scull_qset {
+struct reverce_qset {
 	void **data;
-	struct scull_qset *next;
+	struct reverce_qset *next;
 };
 
-struct scull_dev {
-	struct scull_qset *data;	/* Pointer to first quantum set */
+struct reverce_dev {
+	struct reverce_qset *data;	/* Pointer to first quantum set */
 	int quantum;		/* the current quantum size */
 	int qset;		/* the current array size */
 	unsigned long size;	/* amount of data stored here */
-	unsigned int access_key;	/* used by sculluid and scullpriv */
+	unsigned int access_key;	/* used by reverceuid and revercepriv */
 	struct mutex sem;	/* mutual exclusion semaphore     */
 	struct cdev cdev;	/* Char device structure              */
 };
