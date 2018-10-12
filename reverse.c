@@ -71,7 +71,7 @@ static void reverse_buf(char* buf, uint32_t buf_size)
 	}
 }
 
-ssize_t reverce_read(struct file *f, char __user *user_buf, size_t size, loff_t *offset)
+ssize_t reverse_read(struct file *f, char __user *user_buf, size_t size, loff_t *offset)
 {
 
 	uint32_t ret = 0;
@@ -92,7 +92,7 @@ ssize_t reverce_read(struct file *f, char __user *user_buf, size_t size, loff_t 
 	return ret;
 }
 
-ssize_t reverce_write(struct file *filep, const char __user * user_buf, size_t size,
+ssize_t reverse_write(struct file *filep, const char __user * user_buf, size_t size,
 			   loff_t * offset)
 {
 	int32_t status;
@@ -103,31 +103,31 @@ ssize_t reverce_write(struct file *filep, const char __user * user_buf, size_t s
 		return status;
 
 	copy_from_user(bufobj.buf, user_buf, bufobj.buf_size);
-	/*decrease size to ignore null terminated symbol to be reverced*/
+	/*decrease size to ignore null terminated symbol to be reversed*/
 	reverse_buf(bufobj.buf, bufobj.buf_size-1);
 
 	return size;
 }
 
 
-struct file_operations reverce_fops = {
+struct file_operations reverse_fops = {
 	.owner 		= THIS_MODULE,
-	.read 		= reverce_read,
-	.write 		= reverce_write
+	.read 		= reverse_read,
+	.write 		= reverse_write
 };
 
 /*SECTION local static functions*/
-static int reverce_release_res(void)
+static int reverse_release_res(void)
 {
 	proc_remove(proc_entry);
 	deinit_buf(&bufobj);
 	return 0;
 }
 
-static int reverce_alloc_res(void)
+static int reverse_alloc_res(void)
 {
 
-	proc_entry = proc_create("reverse", 0644, NULL, &reverce_fops);
+	proc_entry = proc_create("reverse", 0644, NULL, &reverse_fops);
 	if(!proc_entry){
 		pr_err("failed to mount file in procfs");
 		return -1;
@@ -138,18 +138,18 @@ static int reverce_alloc_res(void)
 
 
 /*mod init/exit functions*/
-int __init reverce_init(void)
+int __init reverse_init(void)
 {
 	pr_dbg("mod start");
-	return reverce_alloc_res();
+	return reverse_alloc_res();
 }
 
-module_init(reverce_init);
+module_init(reverse_init);
 
-void __exit reverce_exit(void)
+void __exit reverse_exit(void)
 {
-	reverce_release_res();
+	reverse_release_res();
 	pr_dbg("mod exit");
 }
 
-module_exit(reverce_exit);
+module_exit(reverse_exit);

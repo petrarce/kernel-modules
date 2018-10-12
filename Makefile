@@ -1,6 +1,6 @@
 
 ifeq ($(OBJ),)
-OBJ=reverce.o
+OBJ=reverse.o
 endif
 
 ifeq ($(KPATH),)
@@ -36,4 +36,4 @@ help:
 	@echo '	default': 
 	@echo '		KPATH=/lib/modules/`uname -r`/build'
 	@echo '		INSTALL_MOD_PATH = .'
-	@echo '		obj-m=reverce.o'
+	@echo '		obj-m=reverse.o'
