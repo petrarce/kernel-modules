@@ -1,8 +1,6 @@
 
 ifeq ($(OBJ),)
-obj-m=reverce.o
-else
-obj-m=${OBJ}
+OBJ=reverce.o
 endif
 
 ifeq ($(KPATH),)
@@ -13,7 +11,9 @@ ifeq ($(INSTALL_MOD_PATH),)
 INSTALL_MOD_PATH = .
 endif
 
-.PHONY = default 
+obj-m=$(OBJ)
+
+.PHONY = default help install clean build modules
 
 default:build install
 
@@ -32,4 +32,8 @@ clean:
 modules:
 	make -C $(KPATH) M=$(PWD) modules
 help:
-	make -C $(KPATH) M=$(PWD) help
+	@echo 'make OBJ=<obj_files_for_module> KPATH=<path_to_kernel_sorces> INSTALL_MOD_PATH=<path_where_ko_will_be_installed>'
+	@echo '	default': 
+	@echo '		KPATH=/lib/modules/`uname -r`/build'
+	@echo '		INSTALL_MOD_PATH = .'
+	@echo '		obj-m=reverce.o'
