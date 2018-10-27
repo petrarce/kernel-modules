@@ -31,6 +31,13 @@ struct buf_t{
 	uint32_t buf_size;
 } bufobj = {.buf = NULL, .buf_size = 0};
 
+int (*func)(int);
+int increase_counter(int i)
+{
+	i++;
+	return i;
+}
+
 /*SECTION set device file methods*/
 inline void deinit_buf(struct buf_t *bufobj)
 {
@@ -55,8 +62,7 @@ inline int8_t init_buf(struct buf_t *bufobj, uint32_t size)
 
 }
 
-
-static void reverse_buf(char* buf, uint32_t buf_size)
+void reverse_buf(char* buf, uint32_t buf_size)
 {
 	uint32_t i;
 	char tmp_symb;
@@ -95,6 +101,7 @@ ssize_t reverse_read(struct file *f, char __user *user_buf, size_t size, loff_t 
 ssize_t reverse_write(struct file *filep, const char __user * user_buf, size_t size,
 			   loff_t * offset)
 {
+	pr_dbg("start wryting");
 	int32_t status;
 
 	deinit_buf(&bufobj);
@@ -105,6 +112,19 @@ ssize_t reverse_write(struct file *filep, const char __user * user_buf, size_t s
 	copy_from_user(bufobj.buf, user_buf, bufobj.buf_size);
 	/*decrease size to ignore null terminated symbol to be reversed*/
 	reverse_buf(bufobj.buf, bufobj.buf_size-1);
+
+
+
+	int i = 0;
+	int exec_time_start;
+	exec_time_start = jiffies;
+	for(i = 0; i < 1000; i++)
+		func(i);			
+	pr_dbg("execution time (in jiffies): %d", jiffies - exec_time_start);
+
+
+
+	pr_dbg("end wryting");
 
 	return size;
 }
@@ -141,6 +161,7 @@ static int reverse_alloc_res(void)
 int __init reverse_init(void)
 {
 	pr_dbg("mod start");
+	func = increase_counter;
 	return reverse_alloc_res();
 }
 
