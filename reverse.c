@@ -7,6 +7,7 @@
 #include <linux/slab.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#include <linux/kthread.h>
 
 MODULE_LICENSE("GPL");
 
@@ -136,11 +137,54 @@ static int reverse_alloc_res(void)
 	return 0;
 }
 
+static struct task_struct *kt1, *kt2;
+
+int kthread1(void *data)
+{
+
+	while(1){
+
+		if(kthread_should_stop()){
+			pr_dbg("stopping %s", __FUNCTION__);
+			return 0;
+		}
+
+		if(printk_ratelimit())
+			pr_dbg("%s thread is running", __FUNCTION__);
+
+		schedule();
+	}
+
+	return -1;
+}
+
+int kthread2(void *data)
+{
+
+	while(1){
+
+		if(kthread_should_stop()){
+			pr_dbg("stopping %s", __FUNCTION__);
+			return 0;
+		}
+
+		if(printk_ratelimit())
+			pr_dbg("%s thread is running", __FUNCTION__);
+
+	}
+
+	return -1;
+}
+
+
 
 /*mod init/exit functions*/
 int __init reverse_init(void)
 {
 	pr_dbg("mod start");
+
+	kt1 = kthread_run(kthread1, NULL, "kthread1");
+	kt2 = kthread_run(kthread2, NULL, "kthread2");
 	return reverse_alloc_res();
 }
 
@@ -149,6 +193,8 @@ module_init(reverse_init);
 void __exit reverse_exit(void)
 {
 	reverse_release_res();
+	kthread_stop(kt1);
+	kthread_stop(kt2);
 	pr_dbg("mod exit");
 }
 
